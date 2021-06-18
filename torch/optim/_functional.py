@@ -151,7 +151,8 @@ def sgd(params: List[Tensor],
         momentum: float,
         lr: float,
         dampening: float,
-        nesterov: bool):
+        nesterov: bool,
+        orth: bool):
     r"""Functional API that performs SGD algorithm computation.
 
     See :class:`~torch.optim.SGD` for details.
@@ -160,6 +161,20 @@ def sgd(params: List[Tensor],
     for i, param in enumerate(params):
 
         d_p = d_p_list[i]
+
+        if orth and param.ndim > 1:
+            d_p_flat = d_p.flatten(start_dim=1)
+
+            try:
+                u, _, v = torch.linalg.svd(d_p_flat, full_matrices=False)
+            except RuntimeError:
+                print("Failed to perform svd, adding some noise.")
+                u, _, v = torch.linalg.svd(
+                    d_p_flat + 1e-4 * d_p_flat.mean() * torch.randn_like(d_p_flat),
+                    full_matrices=False)
+
+            d_p = (u @ v).reshape_as(param)
+
         if weight_decay != 0:
             d_p = d_p.add(param, alpha=weight_decay)
 
